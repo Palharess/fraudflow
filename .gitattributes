@@ -1,0 +1,6 @@
+# Scripts e SQL precisam de quebra de linha LF para rodar no Cloud Shell (Linux).
+# Sem isso, o bash falha com "bad interpreter: /bin/bash^M" ao clonar no Windows.
+* text=auto eol=lf
+*.sh  text eol=lf
+*.sql text eol=lf
+*.py  text eol=lf
