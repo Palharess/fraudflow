@@ -4,11 +4,17 @@
 #
 # Baixa e descompacta fraudTrain.csv e fraudTest.csv em ${DATA_DIR}.
 #
-# PRE-REQUISITO: credencial do Kaggle em ~/.kaggle/kaggle.json
-#   1. kaggle.com -> Settings -> API -> "Create New Token"
-#   2. o navegador baixa kaggle.json
-#   3. no Cloud Shell:  mkdir -p ~/.kaggle && mv kaggle.json ~/.kaggle/
-#      e depois:        chmod 600 ~/.kaggle/kaggle.json
+# PRE-REQUISITO: token do Kaggle. O formato atual e um token unico "KGAT_...",
+# obtido em kaggle.com -> Settings -> API -> "Generate New Token". Ele pode ser
+# fornecido de tres formas (a CLI aceita qualquer uma):
+#
+#   a) variavel de ambiente:  export KAGGLE_API_TOKEN="KGAT_..."
+#   b) arquivo:               ~/.kaggle/access_token  (so o token, sem aspas)
+#   c) legado:                ~/.kaggle/kaggle.json   (ainda funciona)
+#
+# OBS: se voce estiver usando os notebooks em Notebooks/, este script nao e
+# necessario — o 00_setup_e_ingestao.ipynb ja faz o download pedindo o token
+# com getpass, sem gravar nada em disco.
 #
 # Uso:  bash scripts/01_download_dataset.sh
 # ---------------------------------------------------------------------------
@@ -27,12 +33,19 @@ if ! command -v kaggle >/dev/null 2>&1; then
   export PATH="${PATH}:${HOME}/.local/bin"
 fi
 
-if [[ ! -f "${HOME}/.kaggle/kaggle.json" ]]; then
-  echo "ERRO: ~/.kaggle/kaggle.json nao encontrado." >&2
-  echo "      Veja as instrucoes no cabecalho deste script." >&2
+if [[ -n "${KAGGLE_API_TOKEN:-}" ]]; then
+  echo "    autenticando por KAGGLE_API_TOKEN"
+elif [[ -f "${HOME}/.kaggle/access_token" ]]; then
+  chmod 600 "${HOME}/.kaggle/access_token"
+  echo "    autenticando por ~/.kaggle/access_token"
+elif [[ -f "${HOME}/.kaggle/kaggle.json" ]]; then
+  chmod 600 "${HOME}/.kaggle/kaggle.json"
+  echo "    autenticando por ~/.kaggle/kaggle.json (formato legado)"
+else
+  echo "ERRO: nenhuma credencial do Kaggle encontrada." >&2
+  echo "      Veja as tres opcoes no cabecalho deste script." >&2
   exit 1
 fi
-chmod 600 "${HOME}/.kaggle/kaggle.json"
 
 echo
 echo "==> 2/3  Baixando ${KAGGLE_DATASET} (~200 MB compactado)"

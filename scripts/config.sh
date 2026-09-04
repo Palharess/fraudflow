@@ -11,7 +11,7 @@
 # --- AJUSTE AQUI -----------------------------------------------------------
 # ID do projeto GCP (precisa ser unico globalmente).
 # Sugestao: fraudflow-pdm-<suas-iniciais>
-export PROJECT_ID="${PROJECT_ID:-AJUSTE-ME}"
+export PROJECT_ID="${PROJECT_ID:-fraudflow-pdm-gps}"
 # ---------------------------------------------------------------------------
 
 # Regiao unica para TODOS os servicos do projeto (decisao D1 do plano).
