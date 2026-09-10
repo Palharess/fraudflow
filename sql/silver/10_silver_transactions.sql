@@ -95,4 +95,4 @@ WHERE transaction_ts IS NOT NULL
 QUALIFY ROW_NUMBER() OVER (
           PARTITION BY transaction_id
           ORDER BY ingestion_timestamp, source_file
-        ) = 1;
+        ) = 1

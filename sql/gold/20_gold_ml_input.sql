@@ -35,18 +35,7 @@ SELECT
   -- Neste formato a ordem alfabética é a ordem cronológica, então o recorte
   -- do DATA_SPLIT_METHOD='SEQ' fica idêntico ao que sairia do TIMESTAMP.
   -- Existe como alternativa pronta caso o registro no Vertex AI recuse
-  -- TIMESTAMP na entrada do modelo — ver o comentário em 30_create_model_logistic.sql.
+  -- TIMESTAMP na entrada do modelo — ver o notebook 04.
   FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', transaction_ts)  AS split_key
 
 FROM `${PROJECT_ID}.silver.transactions`;
-
-
--- Conferência: volume, taxa de fraude e janela temporal.
-SELECT
-  COUNT(*)                                             AS linhas,
-  COUNTIF(is_fraud = 1)                                AS fraudes,
-  ROUND(100 * COUNTIF(is_fraud = 1) / COUNT(*), 3)     AS pct_fraude,
-  MIN(transaction_ts)                                  AS primeira,
-  MAX(transaction_ts)                                  AS ultima,
-  COUNTIF(amount <= 0)                                 AS valores_invalidos
-FROM `${PROJECT_ID}.gold.ml_input`;

@@ -62,32 +62,3 @@ JOIN `${PROJECT_ID}.gold.ml_input` AS r
   USING (transaction_id)
 ORDER BY p.fraud_score DESC
 LIMIT 20;
-
-
--- ---------------------------------------------------------------------------
--- Reserva: se a consulta acima demorar na hora da demo, esta responde rápido
--- e mostra o placar do modelo no período de validação inteiro.
--- ---------------------------------------------------------------------------
--- WITH corte AS (
---   SELECT APPROX_QUANTILES(transaction_ts, 5)[OFFSET(4)] AS inicio_validacao
---   FROM `${PROJECT_ID}.gold.ml_input`
--- ),
--- pontuado AS (
---   SELECT
---     transaction_id,
---     (SELECT p.prob FROM UNNEST(predicted_is_fraud_probs) AS p
---      WHERE CAST(p.label AS STRING) = '1') AS fraud_score
---   FROM ML.PREDICT(MODEL `${PROJECT_ID}.gold.fraud_boosted`,
---     (SELECT transaction_id, transaction_ts, customer_dob, customer_lat,
---             customer_long, merchant_lat, merchant_long, amount, category,
---             city_pop
---      FROM `${PROJECT_ID}.gold.ml_input`, corte
---      WHERE transaction_ts >= corte.inicio_validacao))
--- )
--- SELECT
---   COUNTIF(fraud_score >= 0.30 AND r.is_fraud = 1) AS fraude_pega,
---   COUNTIF(fraud_score >= 0.30 AND r.is_fraud = 0) AS alarme_falso,
---   COUNTIF(fraud_score <  0.30 AND r.is_fraud = 1) AS fraude_escapou,
---   COUNT(*)                                        AS avaliadas
--- FROM pontuado AS p
--- JOIN `${PROJECT_ID}.gold.ml_input` AS r USING (transaction_id);

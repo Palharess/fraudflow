@@ -26,10 +26,25 @@ TRANSFORM (
     - IF(FORMAT_DATE('%m%d', DATE(transaction_ts))
           < FORMAT_DATE('%m%d', customer_dob), 1, 0)      AS age,
 
-  ST_DISTANCE(
-    ST_GEOGPOINT(customer_long, customer_lat),
-    ST_GEOGPOINT(merchant_long, merchant_lat)
-  ) / 1000.0                                              AS distance_km,
+  -- Haversine em km. Escrito com ATAN2/SIN/COS/SQRT/POW de proposito:
+  -- ST_DISTANCE e ST_GEOGPOINT NAO constam na lista de funcoes que o BigQuery
+  -- aceita dentro do TRANSFORM ao exportar/implantar o modelo, e GEOGRAPHY e
+  -- um tipo proibido nesse caminho. Com ST_* o modelo TREINA normalmente, mas
+  -- o deploy no Vertex AI em outubro fica em risco. ACOS(-1) e o pi.
+  2 * 6371.0 * ATAN2(
+    SQRT(
+      POW(SIN((merchant_lat - customer_lat) * ACOS(-1) / 360), 2)
+      + COS(customer_lat * ACOS(-1) / 180)
+        * COS(merchant_lat * ACOS(-1) / 180)
+        * POW(SIN((merchant_long - customer_long) * ACOS(-1) / 360), 2)
+    ),
+    SQRT(1 -
+      ( POW(SIN((merchant_lat - customer_lat) * ACOS(-1) / 360), 2)
+        + COS(customer_lat * ACOS(-1) / 180)
+          * COS(merchant_lat * ACOS(-1) / 180)
+          * POW(SIN((merchant_long - customer_long) * ACOS(-1) / 360), 2) )
+    )
+  )                                                       AS distance_km,
 
   city_pop,
 
@@ -58,6 +73,3 @@ OPTIONS (
 ) AS
 SELECT * EXCEPT (transaction_id, split_key)
 FROM `${PROJECT_ID}.gold.ml_input`;
-
--- Se o teste do dia 8 exigir a troca para split_key, aplique aqui a mesma
--- alteração descrita no rodapé de 30_create_model_logistic.sql.

@@ -30,11 +30,25 @@ TRANSFORM (
     - IF(FORMAT_DATE('%m%d', DATE(transaction_ts))
           < FORMAT_DATE('%m%d', customer_dob), 1, 0)      AS age,
 
-  -- Haversine sobre o elipsoide, em quilômetros.
-  ST_DISTANCE(
-    ST_GEOGPOINT(customer_long, customer_lat),
-    ST_GEOGPOINT(merchant_long, merchant_lat)
-  ) / 1000.0                                              AS distance_km,
+  -- Haversine em km. Escrito com ATAN2/SIN/COS/SQRT/POW de proposito:
+  -- ST_DISTANCE e ST_GEOGPOINT NAO constam na lista de funcoes que o BigQuery
+  -- aceita dentro do TRANSFORM ao exportar/implantar o modelo, e GEOGRAPHY e
+  -- um tipo proibido nesse caminho. Com ST_* o modelo TREINA normalmente, mas
+  -- o deploy no Vertex AI em outubro fica em risco. ACOS(-1) e o pi.
+  2 * 6371.0 * ATAN2(
+    SQRT(
+      POW(SIN((merchant_lat - customer_lat) * ACOS(-1) / 360), 2)
+      + COS(customer_lat * ACOS(-1) / 180)
+        * COS(merchant_lat * ACOS(-1) / 180)
+        * POW(SIN((merchant_long - customer_long) * ACOS(-1) / 360), 2)
+    ),
+    SQRT(1 -
+      ( POW(SIN((merchant_lat - customer_lat) * ACOS(-1) / 360), 2)
+        + COS(customer_lat * ACOS(-1) / 180)
+          * COS(merchant_lat * ACOS(-1) / 180)
+          * POW(SIN((merchant_long - customer_long) * ACOS(-1) / 360), 2) )
+    )
+  )                                                       AS distance_km,
 
   city_pop,
 
@@ -68,37 +82,3 @@ OPTIONS (
 ) AS
 SELECT * EXCEPT (transaction_id, split_key)
 FROM `${PROJECT_ID}.gold.ml_input`;
-
-
--- ===========================================================================
--- TESTE DO DIA 8 — o risco que o plano mandou verificar
---
--- Incerteza: TIMESTAMP na posição de DATA_SPLIT_COL dentro do TRANSFORM pode
--- ser recusado na hora de registrar o modelo no Vertex AI. Não conseguimos
--- confirmar na documentação, e é justamente a peça de que o Trabalho 2
--- depende — então confirmamos agora, não em outubro.
---
--- Como testar: rodar este arquivo e conferir se o modelo aparece em
--- Vertex AI > Model Registry com o id 'fraudflow-logistic'.
---
--- SE FALHAR, troque exatamente três linhas para a alternativa em texto.
--- A gold.ml_input já traz a coluna split_key pronta, no formato
--- 'YYYY-MM-DD HH:MM:SS', cuja ordem alfabética é a ordem cronológica — o
--- recorte temporal fica idêntico e o TIMESTAMP sai da entrada do modelo.
---
---   1. no TRANSFORM, troque      transaction_ts        por   split_key
---   2. em OPTIONS, troque        DATA_SPLIT_COL = 'transaction_ts'
---                                por  DATA_SPLIT_COL = 'split_key'
---   3. no SELECT final, troque   EXCEPT (transaction_id, split_key)
---                                por  EXCEPT (transaction_id, transaction_ts)
---
--- Atenção ao passo 3: sem ele, transaction_ts continuaria disponível e o
--- TRANSFORM precisaria dele para calcular hour, day_of_week, is_night e age.
--- Ou seja, mantenha transaction_ts na ENTRADA e apenas troque o que é
--- repassado na SAÍDA do TRANSFORM:
---
---   TRANSFORM ( ..., FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', transaction_ts)
---                      AS split_key, is_fraud )
---   OPTIONS   ( ..., DATA_SPLIT_COL = 'split_key' )
---   AS SELECT * EXCEPT (transaction_id, split_key) FROM gold.ml_input
--- ===========================================================================
