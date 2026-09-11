@@ -83,7 +83,6 @@ decisiva.
 ```
 Notebooks/   pipeline completo, na ordem 00 a 04
 sql/         mesmos comandos SQL como arquivos avulsos: bronze/ silver/ gold/ ml/
-docs/        slides da apresentação e roteiro da demonstração
 ```
 
 ## Como executar
