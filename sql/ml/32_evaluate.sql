@@ -1,9 +1,9 @@
 -- ===========================================================================
 -- Avaliacao dos modelos
 --
--- Com fraude em 0,58% dos casos a acuracia nao diz nada: responder
--- 'nao e fraude' para tudo ja acerta 99,4%. A leitura correta e por
--- recall, precision e F1, com a matriz de confusao ao lado.
+-- Com fraude em 0,58% dos casos a acuracia nao e informativa: responder
+-- 'nao e fraude' para tudo ja acerta 99,4%. A leitura correta e por recall,
+-- precision e F1, com a matriz de confusao ao lado.
 -- ===========================================================================
 
 SELECT 'v1 · logistica' AS modelo,

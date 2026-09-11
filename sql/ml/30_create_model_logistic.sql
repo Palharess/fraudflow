@@ -75,8 +75,8 @@ OPTIONS (
   DATA_SPLIT_COL           = 'transaction_ts',
   DATA_SPLIT_EVAL_FRACTION = 0.20,
 
-  -- Já registra e versiona no Vertex AI. Não custa nada enquanto não houver
-  -- endpoint implantado, e adianta metade do Trabalho 2.
+  -- Registra e versiona no Vertex AI. Nao ha custo enquanto nao houver
+  -- endpoint implantado.
   MODEL_REGISTRY           = 'VERTEX_AI',
   VERTEX_AI_MODEL_ID       = 'fraudflow-logistic'
 ) AS

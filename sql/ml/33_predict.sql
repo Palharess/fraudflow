@@ -5,9 +5,8 @@
 -- is_fraud. O rótulo entra depois, por um JOIN em transaction_id, apenas para
 -- mostrar acerto e erro na tela.
 --
--- Isso não é firula. É a mesma separação que a API do Trabalho 2 vai ter:
--- lá o evento chega sem rótulo nenhum, e o modelo precisa decidir sozinho.
--- Escrever a demo assim prova que o contrato está sendo respeitado.
+-- E a mesma separacao que a API do Trabalho 2 tera: la o evento chega sem
+-- rotulo nenhum, e o modelo precisa decidir sozinho.
 --
 -- O recorte é o período de validação — os 20% finais por tempo, que o
 -- DATA_SPLIT_METHOD='SEQ' reservou e o modelo nunca viu no treino.

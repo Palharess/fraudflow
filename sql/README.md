@@ -1,7 +1,7 @@
 # Scripts SQL — Arquitetura Medallion
 
 Ordem de execução. Todos os arquivos usam `${PROJECT_ID}` como placeholder:
-substitua pelo id do projeto antes de executar, ou carregue `scripts/config.sh`.
+substitua pelo id do projeto antes de executar.
 
 | # | Arquivo | O que faz | Camada |
 |---|---|---|---|
@@ -18,8 +18,7 @@ substitua pelo id do projeto antes de executar, ou carregue `scripts/config.sh`.
 
 A carga do CSV do Cloud Storage para a tabela de estágio é um **load job** do
 BigQuery: gratuito, paralelizado pelo próprio serviço e sem instrução SQL.
-Ela é disparada por [`Notebooks/01_raw_to_bronze.ipynb`](../Notebooks/01_raw_to_bronze.ipynb)
-ou por [`scripts/02_upload_to_gcs.sh`](../scripts/02_upload_to_gcs.sh).
+Ela é disparada por [`Notebooks/01_raw_to_bronze.ipynb`](../Notebooks/01_raw_to_bronze.ipynb).
 O script `01_bronze_transactions.sql` é o passo seguinte, que acrescenta os
 metadados de linhagem.
 

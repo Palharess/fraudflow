@@ -5,9 +5,8 @@
 -- modelos só é honesta se as features forem exatamente as mesmas. O que muda
 -- é o algoritmo.
 --
--- CUSTO: este é o único gasto imprevisível do Trabalho 1. Treino de modelo
--- tem tarifa própria e não entra na cota gratuita, e o boosted tree tem um
--- componente cobrado à parte. Abra o Billing logo depois deste treino.
+-- CUSTO: treino de modelo tem tarifa propria e nao entra na cota gratuita.
+-- O boosted tree tem ainda um componente de treino cobrado a parte.
 -- ===========================================================================
 
 CREATE OR REPLACE MODEL `${PROJECT_ID}.gold.fraud_boosted`
