@@ -67,13 +67,13 @@ Avaliados sobre os 20% finais por tempo, que o modelo não viu no treino:
 | Modelo | Recall | Precision | F1 | ROC AUC |
 |---|---|---|---|---|
 | v1 · regressão logística | 0,867 | 0,041 | 0,079 | 0,949 |
-| v2 · boosted tree | **0,969** | **0,298** | **0,456** | **0,999** |
+| v2 · boosted tree | **0,970** | **0,307** | **0,466** | **0,998** |
 
-O v2 captura 97 de cada 100 fraudes, marcando 1,36% das transações legítimas
-para revisão.
+Métricas no limiar padrão de 0,5. O v2 captura 97 de cada 100 fraudes, marcando
+1,31% das transações legítimas para revisão.
 
 Acurácia não é usada como métrica: responder "não é fraude" para tudo daria
-99,41%, mais que os 98,63% do modelo. Como os dados vêm de um simulador, as
+99,41%, mais que os 98,68% do modelo. Como os dados vêm de um simulador, as
 separações entre classes são mais limpas do que em fraude real — a madrugada
 concentra 18× mais fraude, e o modelo elegeu `is_night` como a feature mais
 decisiva.
