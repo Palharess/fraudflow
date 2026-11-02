@@ -34,8 +34,8 @@ SELECT
   -- Chave de corte temporal em texto, no formato 'YYYY-MM-DD HH:MM:SS'.
   -- Neste formato a ordem alfabética é a ordem cronológica, então o recorte
   -- do DATA_SPLIT_METHOD='SEQ' fica idêntico ao que sairia do TIMESTAMP.
-  -- Existe como alternativa pronta caso o registro no Vertex AI recuse
-  -- TIMESTAMP na entrada do modelo — ver o notebook 04.
+  -- Alternativa ao TIMESTAMP no DATA_SPLIT_COL. O teste de exportação do
+  -- notebook 05 mostrou que o TIMESTAMP é aceito, então hoje não é usada.
   FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', transaction_ts)  AS split_key
 
 FROM `${PROJECT_ID}.silver.transactions`;

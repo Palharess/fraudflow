@@ -26,9 +26,13 @@ TRANSFORM (
   -- ano, não anos completos, então descontamos 1 quando o aniversário ainda
   -- não passou. Calculada a partir de transaction_ts — NUNCA do unix_time,
   -- que deixaria todo mundo sete anos mais novo sem emitir erro.
+  -- O aniversário é comparado como número (mês × 100 + dia): na exportação
+  -- para o Vertex AI, o < dentro do TRANSFORM só aceita argumentos numéricos.
   DATE_DIFF(DATE(transaction_ts), customer_dob, YEAR)
-    - IF(FORMAT_DATE('%m%d', DATE(transaction_ts))
-          < FORMAT_DATE('%m%d', customer_dob), 1, 0)      AS age,
+    - IF(EXTRACT(MONTH FROM DATE(transaction_ts)) * 100
+           + EXTRACT(DAY FROM DATE(transaction_ts))
+         < EXTRACT(MONTH FROM customer_dob) * 100
+           + EXTRACT(DAY FROM customer_dob), 1, 0)        AS age,
 
   -- Haversine em km. Escrito com ATAN2/SIN/COS/SQRT/POW de proposito:
   -- ST_DISTANCE e ST_GEOGPOINT NAO constam na lista de funcoes que o BigQuery
