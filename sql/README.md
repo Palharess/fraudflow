@@ -13,6 +13,12 @@ substitua pelo id do projeto antes de executar.
 | 31 | [ml/31_create_model_boosted.sql](ml/31_create_model_boosted.sql) | Modelo v2 — árvores impulsionadas | ML |
 | 32 | [ml/32_evaluate.sql](ml/32_evaluate.sql) | Métricas, matriz de confusão, importância e pesos | ML |
 | 33 | [ml/33_predict.sql](ml/33_predict.sql) | Predição — a demonstração ao vivo | ML |
+| 40 | [stream/40_tabelas_stream.sql](stream/40_tabelas_stream.sql) | Tabelas que o Dataflow grava: válidos e erros | Silver (stream) |
+| 41 | [stream/41_vw_transactions_unified.sql](stream/41_vw_transactions_unified.sql) | Visão única do histórico e do tempo real | Gold |
+| 42 | [stream/42_consultas_demo.sql](stream/42_consultas_demo.sql) | Consultas da demonstração do streaming | — |
+
+Os scripts 40 e 41 são executados por `infra/setup_streaming.sh`, que troca o
+`${PROJECT_ID}` sozinho.
 
 ## A ingestão bruta não tem SQL
 
