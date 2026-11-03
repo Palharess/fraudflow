@@ -23,39 +23,10 @@ entregas que evoluem a mesma solução.
 
 ## A arquitetura em uma imagem
 
-```mermaid
-flowchart LR
-  subgraph BATCH["Camada batch · histórico (Trabalho 1)"]
-    A["GCS<br/>raw/train/fraudTrain.csv"] -->|load job| B[("bronze.transactions")]
-    B -->|tipagem, limpeza, dedup| C[("silver.transactions")]
-    C --> D[("gold.ml_input")]
-    D -->|CREATE MODEL + TRANSFORM| E[["BigQuery ML<br/>fraud_boosted"]]
-  end
+![Arquitetura híbrida do FraudFlow](docs/arquitetura.png)
 
-  subgraph STREAM["Camada streaming · tempo real (Trabalho 2)"]
-    F["GCS<br/>holdout/fraudTest.csv"] -->|gerador de eventos| G["Pub/Sub<br/>tópico transactions"]
-    G --> H["Dataflow<br/>Apache Beam"]
-    H -->|válidas| I[("silver.transactions_stream")]
-    H -->|recusadas + motivo| J[("silver.transactions_stream_errors")]
-  end
-
-  C --> K[("gold.vw_transactions_unified<br/>histórico + tempo real")]
-  I --> K
-
-  subgraph SERVING["Camada de serviço (Trabalho 2)"]
-    E -->|registro| L["Vertex AI<br/>Model Registry"]
-    E -->|EXPORT MODEL| M["GCS<br/>modelo exportado"]
-    M -->|imagem Docker| N["Cloud Run<br/>fraudflow-api"]
-    E -->|ML.PREDICT| O["Cloud Run<br/>fraudflow-api-bq<br/>contingência"]
-  end
-
-  P(("cliente")) -->|POST /v1/score| N
-  P -.->|se a principal cair| O
-```
-
-A mesma arquitetura em imagem, para slides e documentos:
-[`docs/arquitetura.png`](docs/arquitetura.png) (ou [`.svg`](docs/arquitetura.svg),
-gerados por [`docs/gerar_diagrama.py`](docs/gerar_diagrama.py)).
+Versão vetorial em [`docs/arquitetura.svg`](docs/arquitetura.svg). As duas
+imagens saem de [`docs/gerar_diagrama.py`](docs/gerar_diagrama.py).
 
 É uma **arquitetura híbrida batch + streaming**, organizada em três camadas:
 
