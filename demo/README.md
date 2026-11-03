@@ -6,45 +6,68 @@ ligar, o que mostrar em cada minuto e o que fazer se algo falhar.
 **Limite: 10 minutos.** Passar disso zera a nota de apresentação. O roteiro mira
 **9 minutos**, e quem apresenta usa um cronômetro visível.
 
+Prints e resultados guardados servem de apoio, mas **não substituem a
+demonstração ao vivo**, que vale 60% da nota.
+
 ## O que a avaliação pede e onde aparece
 
 | Critério | Peso | Onde no roteiro |
 |---|---|---|
 | Arquitetura de ponta a ponta, batch + streaming | 20% (apresentação) | blocos 1 e 2 |
-| Justificativa de particionamento e processamento | (apresentação) | blocos 3 e 5 |
+| Justificativa de particionamento e processamento | (apresentação) | bloco 5 |
 | Gerador → Pub/Sub → Dataflow → BigQuery ao vivo, e o papel de cada pipeline | 30% | blocos 2 e 3 |
 | Requisição HTTP ao Cloud Run com predição e baixa latência | 30% | bloco 4 |
-| Código e organização | 20% | link do GitHub nos slides |
+| Código e organização | 20% | links no fechamento e nos slides |
 
 ---
 
 ## Preparação
 
+### Scripts
+
+| Script | O que faz |
+|---|---|
+| `demo/preparar.sh` | instância sempre ligada na API principal, aquecimento das APIs e o job do Dataflow, esperando ficar em execução |
+| `demo/conferir.sh` | gerador rodando? job em execução? linhas chegando ao BigQuery nos últimos 5 minutos? API respondendo? |
+| `demo/reiniciar_dataflow.sh` | plano B: cancela o job sem worker, espera ele encerrar e sobe outro com outra máquina |
+| `demo/testar_api.py` | as requisições da demo: uma fraude, uma legítima e uma entrada inválida |
+| `infra/teardown.sh` | depois da apresentação: drena o job e tira a instância mínima |
+
+Os scripts de shell rodam da raiz do repositório no Cloud Shell. Os que mexem no
+Dataflow precisam do ambiente do Beam ativo: `source ~/venv-beam/bin/activate`.
+
 ### Quinta, 05/11: ensaio completo
 
-Fazer tudo como na sexta, cronometrando, e desligar no fim. Custa algo em torno
-de US$ 0,50 (Dataflow por cerca de 1 hora), uma estimativa. Anotar o número
-`Para continuar: --inicio N` que o gerador imprime ao parar: é o `--inicio` de sexta.
+Fazer tudo como na sexta, cronometrando todas as trocas de aba e os comandos, e
+desligar no fim. Custa algo em torno de US$ 0,50, uma estimativa para cerca de
+1 hora de Dataflow.
+
+**Anotar o número da linha `Para continuar: --inicio N`** que o gerador grava no
+log ao parar. Esse é o `--inicio` de sexta. Começar de uma linha já publicada não
+faz a view crescer, porque ela remove as duplicatas.
 
 ### Sexta, 06/11: linha do tempo (T = início da apresentação)
 
 | Quando | O quê |
 |---|---|
 | **T − 60 min** | Cloud Shell: `cd ~/fraudflow && git pull`, depois `source ~/venv-beam/bin/activate && bash demo/preparar.sh` |
-| T − 45 min | Console → Dataflow → `fraudflow-stream`: conferir **Em execução** com 1 worker. Sem worker em 15 min: plano B 1 |
-| **T − 30 min** | Ligar o gerador em segundo plano (abaixo) e conferir, com a consulta 1, que o stream está crescendo |
-| T − 15 min | `python3 demo/testar_api.py` uma vez (aquece a API) e abrir todas as abas da lista abaixo |
-| T − 5 min | Rodar de novo as consultas 1 e 3; conferir que o gerador continua imprimindo |
+| T − 45 min | Console → Dataflow → `fraudflow-stream`: conferir **1 worker** ativo. Sem worker em 15 min: plano B 1 |
+| **T − 30 min** | Ligar o gerador (abaixo) com o `--inicio` anotado no ensaio |
+| T − 28 min | `bash demo/conferir.sh`: tudo precisa aparecer funcionando, com linhas novas no BigQuery |
+| T − 15 min | Abrir todas as abas da lista abaixo, com as consultas coladas |
+| T − 5 min | `bash demo/conferir.sh` de novo |
 | **Depois** | Parar o gerador (`pkill -INT -f producer/publisher.py`) e `bash infra/teardown.sh`. Conferir no console o job como **Drained** ("Reduzido") |
 
 ### O gerador, rodando em segundo plano
 
-O gerador roda em segundo plano e grava o progresso num arquivo de log. Assim,
-ele continua mesmo se a aba do terminal fechar:
+O gerador roda em segundo plano e grava o progresso num log. Assim, fechar a aba
+do terminal não o interrompe. Isso não o protege, porém, se a máquina do Cloud
+Shell for encerrada: o Cloud Shell tem limites de sessão e de inatividade.
+Mantenha o log aberto e o gerador monitorado até o fim da apresentação.
 
-1. Ligue o gerador:
+1. Ligue o gerador, trocando `N` pelo número anotado no ensaio:
 ```bash
-cd ~/fraudflow && nohup ~/venv-gerador/bin/python producer/publisher.py --inicio 1200 --taxa 5 --invalidos 60 --intervalo-invalidos 300 > ~/gerador.log 2>&1 &
+cd ~/fraudflow && nohup ~/venv-gerador/bin/python producer/publisher.py --inicio N --taxa 5 --invalidos 60 --intervalo-invalidos 300 > ~/gerador.log 2>&1 &
 ```
 
 2. Acompanhe ao vivo; é esta tela que aparece na demo. `Ctrl+C` só fecha a visualização:
@@ -57,21 +80,21 @@ tail -f ~/gerador.log
 pkill -INT -f producer/publisher.py
 ```
 
+- O ritmo é de 5 transações por segundo e um evento inválido por minuto.
 - Se o `pkill -INT` não parar o gerador, use `pkill -f producer/publisher.py`.
   Nesse caso o resumo não é gravado: o próximo `--inicio` é o `--inicio` usado
   mais o número de transações da última linha do log.
-- O ritmo é de 5 transações por segundo e um evento inválido por minuto.
-- O `--inicio` deve ser o número anotado no ensaio de quinta.
 
 ### Abas abertas, nesta ordem
 
 1. **Slides** (PDF), no diagrama da arquitetura.
 2. **Cloud Shell**: uma aba com o `tail -f ~/gerador.log` e outra livre para o `testar_api.py`.
-3. **Pub/Sub** → Tópicos → `transactions` → Métricas: taxa de publicação.
-4. **Dataflow** → Jobs → `fraudflow-stream`: o grafo, e a aba de métricas com os
+3. **Dataflow** → Jobs → `fraudflow-stream`: o grafo, e a aba de métricas com os
    contadores `eventos_validos` e `eventos_invalidos`.
-5. **BigQuery**, uma aba por consulta (seção Consultas), já com o texto colado.
-6. **API** `/docs`: https://fraudflow-api-189235868606.us-central1.run.app/docs
+4. **Pub/Sub** → Tópicos → `transactions` → Métricas: taxa de publicação.
+5. **BigQuery**: uma aba por consulta (seção Consultas), já com o texto colado.
+6. **GitHub**: `sql/silver/10_silver_transactions.sql`, para mostrar as regras da Silver.
+7. **API** `/docs`: https://fraudflow-api-189235868606.us-central1.run.app/docs
 
 ---
 
@@ -83,66 +106,72 @@ pkill -INT -f producer/publisher.py
 > histórico em lote no BigQuery e treinamos o modelo. No Trabalho 2, as
 > transações passam a chegar em tempo real, e o modelo responde por uma API.
 
-Mostrar o diagrama: as três camadas, batch, streaming e serviço, e a ideia de
-**replay** (o `fraudTest` de 2020 publicado agora, uma transação por vez).
+- Mostrar o diagrama: as três camadas (batch, streaming e serviço).
+- Explicar o **replay**: as transações de 2020 do `fraudTest` são publicadas agora, uma por vez.
 
-### 2. O papel do batch · 1:00–2:00 · BigQuery
+### 2. O papel do batch · 1:00–2:15 · GitHub e BigQuery
 
-> O pipeline batch processa o histórico inteiro de uma vez: 1,3 milhão de
-> transações, da Bronze à Gold. É dele que sai o modelo.
+> O pipeline batch processa o histórico inteiro de uma vez, da Bronze à Gold. É
+> dele que sai o modelo.
 
-- **Consulta A** (camadas do batch): as mesmas 1.296.675 linhas da Bronze à Gold.
-- No explorador do BigQuery, apontar `bronze`, `silver`, `gold` e o modelo `fraud_boosted`.
+- **GitHub:** o SQL da Silver, com tipagem, limpeza, remoção de duplicatas e as
+  regras de validade.
+- **Consulta B**, executada ao vivo: a mesma transformação aplicada a 5 linhas da
+  Bronze. O texto cru vira horário e número, e o prefixo `fraud_` sai.
+- **Consulta A:** o volume em cada camada, 1.296.675 linhas da Bronze à Gold.
 
-### 3. O streaming ao vivo · 2:00–5:30 · Cloud Shell, Pub/Sub, Dataflow, BigQuery
+### 3. O streaming ao vivo · 2:15–5:30 · Cloud Shell, Dataflow, Pub/Sub, BigQuery
 
 > O pipeline de streaming trata cada transação assim que ela chega, com as
-> mesmas regras de limpeza da Silver.
+> mesmas regras da Silver.
 
-1. **Gerador** (Cloud Shell, `tail -f ~/gerador.log`): mostrar os eventos sendo publicados.
-2. **Pub/Sub**: a taxa de mensagens no tópico.
-3. **Dataflow**: o grafo e os contadores de válidos e inválidos subindo.
-4. **Consulta 1**, duas vezes, com uns 20 s entre elas: a linha `stream` cresce e
-   a `batch` fica parada. Esta é a relação batch + streaming.
-5. **Consulta 2** (a emenda): o histórico termina às 12:13:37 e o stream começa às
+1. **Gerador** (`tail -f ~/gerador.log`): os eventos sendo publicados.
+2. **Dataflow:** o grafo, e os contadores de válidos e inválidos subindo.
+3. **Consulta 1**, primeira vez: quantas transações já chegaram pelo stream.
+4. Enquanto o tempo passa, mostrar o **Pub/Sub** (taxa de mensagens) e a
+   **consulta 4**: os eventos inválidos registrados com o motivo, sem derrubar o
+   pipeline.
+5. **Consulta 1** de novo: a linha `stream` cresceu, e a `batch` continua igual.
+   Esta é a relação batch + streaming.
+6. **Consulta 2**, a emenda: o histórico termina às 12:13:37 e o stream começa às
    12:14:25, na mesma view. O `is_fraud` vazio no stream é proposital.
-6. **Consulta 4** (erros): os eventos inválidos ficam registrados com o motivo, em
-   vez de derrubar o pipeline.
-7. **Consulta 3** (atraso): da publicação até o início do processamento, em milissegundos.
+7. **Consulta 3**, o atraso entre a publicação e o início do processamento.
 
-### 4. A API ao vivo · 5:30–7:45 · Cloud Shell e /docs
+### 4. A API ao vivo · 5:30–7:30 · Cloud Shell e /docs
 
 > A API recebe uma transação e devolve o score de fraude. O modelo está dentro
-> do container, sem depender de nenhum outro serviço.
+> do container.
 
 ```bash
 python3 demo/testar_api.py
 ```
 
-- Uma fraude e uma legítima reais da validação. Mostrar o `fraud_score` de cada
-  uma, a latência e o rótulo revelado só depois da resposta.
+- Uma fraude e uma legítima reais da validação: o `fraud_score` de cada uma, a
+  latência e o rótulo revelado só depois da resposta.
 - A entrada inválida: erro 422, explicando cada campo.
-- Abrir o `/docs` e mostrar o contrato.
-- Se sobrar tempo: `python3 demo/testar_api.py --contingencia`, a mesma resposta
-  pelo `ML.PREDICT`, mais lenta.
+- No `/docs`: o contrato, e um *Try it out* se houver tempo.
+- A contingência (`--contingencia`) só entra se a principal falhar ou se o
+  professor perguntar.
 
-### 5. Por que essas escolhas · 7:45–8:45 · slides
+### 5. Por que essas escolhas · 7:30–8:30 · slides
 
 - **Partição pela data da transação e cluster por categoria**, nas duas camadas:
   consultas por período leem só as partições do período. A consulta 2 mostra a
   estimativa de bytes lidos. A tabela de erros é particionada pela data de
   processamento.
-- **Horário do evento, não de chegada**: hora e madrugada decidem o modelo.
-- **Duplicatas**: o Pub/Sub entrega pelo menos uma vez; o Dataflow e a view
-  removem as repetições.
+- **Horário original do evento**: hora e madrugada decidem o modelo. O horário de
+  publicação e o de processamento ficam em colunas separadas.
+- **Duplicatas**: o Pub/Sub entrega pelo menos uma vez. O Dataflow descarta
+  reenvios recentes, e a view mantém uma linha por transação.
 - **Modelo no container**: o Vertex AI ficou sem máquina na região. Carregar o
-  modelo na API tirou essa dependência e baixou a latência. O teste de paridade
-  provou que o resultado é idêntico ao do BigQuery.
+  modelo na API tirou essa dependência, e o teste de paridade provou que o
+  resultado é idêntico ao do BigQuery.
 
-### 6. Fechamento · 8:45–9:00
+### 6. Fechamento · 8:30–9:00 · slides
 
-> Próximo passo, no trabalho final: o Dataflow chama esta API para cada
-> transação e grava o score junto com o evento.
+- Os links: o GitHub com o código e o README, e a URL da API.
+- O próximo passo, no Trabalho Final: o Dataflow chama esta API para cada
+  transação e grava o score junto com o evento.
 
 ---
 
@@ -151,11 +180,22 @@ python3 demo/testar_api.py
 Prontas para colar no BigQuery. As de número 1 a 4 também estão em
 [`sql/stream/42_consultas_demo.sql`](../sql/stream/42_consultas_demo.sql).
 
-**A · Camadas do batch**
+**A · Volume em cada camada do batch**
 ```sql
 SELECT 'bronze' AS camada, COUNT(*) AS linhas FROM `fraudflow-pdm-gps.bronze.transactions`
 UNION ALL SELECT 'silver', COUNT(*) FROM `fraudflow-pdm-gps.silver.transactions`
 UNION ALL SELECT 'gold.ml_input', COUNT(*) FROM `fraudflow-pdm-gps.gold.ml_input`;
+```
+
+**B · A transformação da Silver em 5 linhas da Bronze**
+```sql
+SELECT
+  trans_date_trans_time, amt, merchant,
+  SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', trans_date_trans_time) AS transaction_ts,
+  SAFE_CAST(amt AS FLOAT64)                                        AS amount,
+  REGEXP_REPLACE(merchant, r'^fraud_', '')                         AS merchant_name
+FROM `fraudflow-pdm-gps.bronze.transactions`
+LIMIT 5;
 ```
 
 **1 · Batch e stream lado a lado**
@@ -173,7 +213,7 @@ WHERE DATE(transaction_ts) = '2020-06-21' AND transaction_ts BETWEEN '2020-06-21
 ORDER BY transaction_ts;
 ```
 
-**3 · Atraso do pipeline (últimos 10 minutos)**
+**3 · Atraso entre a publicação e o início do processamento (últimos 10 minutos)**
 ```sql
 SELECT COUNT(*) AS eventos,
   ROUND(AVG(TIMESTAMP_DIFF(processed_at, published_at, MILLISECOND))) AS atraso_medio_ms,
@@ -196,17 +236,17 @@ GROUP BY error_reason ORDER BY eventos DESC;
 
 | Se acontecer | Fazer |
 |---|---|
-| 1. Dataflow sem worker depois de 15 min | `bash infra/teardown.sh`, depois `MAQUINA=e2-standard-2 bash demo/preparar.sh` |
-| 2. Dataflow não sobe de jeito nenhum | Rodar o mesmo pipeline no Cloud Shell: `bash streaming/run.sh local`. Mesmo código e mesmas tabelas; avisar que é o executor local e mostrar o grafo do Dataflow nos slides |
-| 3. O gerador parou | Ver a última linha de `~/gerador.log` e ligar de novo com o `--inicio` seguinte |
+| 1. Dataflow sem worker depois de 15 min | `MAQUINA=e2-standard-2 bash demo/reiniciar_dataflow.sh`: cancela o job, espera ele encerrar e sobe outro |
+| 2. Dataflow não sobe de jeito nenhum | Contingência degradada, e deve ser apresentada como tal. Confirmar que **nenhum** job do Dataflow está ativo, porque os dois não podem ler a mesma assinatura. Então rodar `bash streaming/run.sh local`: mesmo código e mesmas tabelas, no executor local do Beam |
+| 3. O gerador parou | `bash demo/conferir.sh` mostra. Ligar de novo com o `--inicio` seguinte, tirado do log |
 | 4. A API principal lenta ou fora | `python3 demo/testar_api.py --contingencia`: a mesma predição pelo `ML.PREDICT` |
-| 5. Console do BigQuery lento | Mostrar os resultados registrados nos slides e seguir o roteiro |
+| 5. Console do BigQuery lento | Seguir o roteiro com os resultados registrados nos slides |
 | 6. Sem internet | Slides com as evidências; o código no GitHub fica para a avaliação |
 
-**Nunca apresentar com a API fria.** A primeira chamada depois de a API ficar
-parada leva cerca de um minuto, porque o container sobe e carrega o TensorFlow.
-O `demo/preparar.sh` deixa uma instância ligada, e o aquecimento das T − 15 min
-confirma.
+**Nunca apresentar com a API fria.** Medido em 03/11: depois de a API ficar
+parada, a primeira requisição levou cerca de um minuto, porque o container sobe e
+carrega o TensorFlow. O `demo/preparar.sh` deixa uma instância ligada e faz uma
+requisição de aquecimento.
 
 ## Custos do dia
 
@@ -215,4 +255,4 @@ Estimativas, para cerca de 2 horas ligadas:
 - **Instância mínima do Cloud Run:** centavos.
 - **Pub/Sub e BigQuery:** centavos.
 
-O `infra/teardown.sh` desliga tudo isso, e não apaga dados.
+O `infra/teardown.sh` desliga o que cobra por hora, e não apaga dados.

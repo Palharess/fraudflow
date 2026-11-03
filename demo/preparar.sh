@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # Prepara a demonstração ao vivo. Rodar ~60 minutos antes da apresentação.
 #
-#   1. sobe o job de streaming no Dataflow, se ainda não estiver rodando
-#   2. deixa uma instância sempre ligada na API principal (sem partida a frio)
-#   3. confere a saúde das duas APIs
+#   1. API principal com uma instância sempre ligada (sem partida a frio)
+#   2. saúde das duas APIs e uma requisição de aquecimento
+#   3. job de streaming no Dataflow: sobe, se ainda não existir, e espera ficar
+#      em execução
+#
+# Depois de ligar o gerador, conferir o processamento com: bash demo/conferir.sh
 #
 # Uso, da raiz do repositório, com o ambiente do Beam ativo:
 #   source ~/venv-beam/bin/activate && bash demo/preparar.sh
@@ -11,38 +14,41 @@
 # Depois da apresentação: bash infra/teardown.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
-
-PROJECT_ID="${PROJECT_ID:-fraudflow-pdm-gps}"
-REGION="${REGION:-us-central1}"
+source demo/comum.sh
 
 python -c "import apache_beam" 2>/dev/null ||
   { echo "Ative antes o ambiente do Beam: source ~/venv-beam/bin/activate"; exit 1; }
 
-echo "== Dataflow"
-ATIVO=$(gcloud dataflow jobs list --project="$PROJECT_ID" --region="$REGION" \
-  --status=active --filter='name=fraudflow-stream' --format='value(id)')
-if [[ -n "$ATIVO" ]]; then
-  echo "  já em execução: $ATIVO"
-else
-  bash streaming/run.sh dataflow
-fi
-
-echo "== Cloud Run: uma instância sempre ligada na API principal"
+echo "== 1. API principal: uma instância sempre ligada"
 # Custa enquanto estiver ligada; o teardown volta para zero.
 gcloud run services update fraudflow-api --project="$PROJECT_ID" --region="$REGION" \
   --min-instances=1 --quiet >/dev/null 2>&1
 echo "  fraudflow-api: instância mínima = 1"
 
-echo "== Saúde das APIs"
+echo "== 2. Saúde e aquecimento das APIs"
 for servico in fraudflow-api fraudflow-api-bq; do
-  URL=$(gcloud run services describe "$servico" --project="$PROJECT_ID" --region="$REGION" \
-    --format='value(status.url)')
-  curl -s -o /dev/null -w "  $servico  /health → %{http_code} em %{time_total}s\n" "$URL/health"
+  curl -s -o /dev/null -w "  $servico  /health → %{http_code} em %{time_total}s\n" \
+    --max-time 120 "$(url_do_servico "$servico")/health"
 done
+if python3 demo/testar_api.py >/dev/null; then
+  echo "  requisição de aquecimento na API principal: ok"
+else
+  echo "  AVISO: aquecimento falhou; rode python3 demo/testar_api.py e veja o erro"
+fi
+
+echo "== 3. Dataflow"
+JOB=$(job_ativo)
+if [[ -n "$JOB" ]]; then
+  echo "  já existe um job ativo: $JOB"
+else
+  bash streaming/run.sh dataflow
+  JOB=$(job_ativo)
+fi
+esperar_estado "$JOB" JOB_STATE_RUNNING
 
 echo
 echo "Próximos passos:"
-echo "  1. Console → Dataflow → fraudflow-stream: espere 'Em execução' com 1 worker."
-echo "     Se em 15 min não aparecer worker: bash infra/teardown.sh e"
-echo "     MAQUINA=e2-standard-2 bash demo/preparar.sh"
-echo "  2. Ligue o gerador em segundo plano (veja demo/README.md)."
+echo "  1. Console → Dataflow → fraudflow-stream: o job em execução ainda precisa de 1 worker."
+echo "     Sem worker em 15 min: MAQUINA=e2-standard-2 bash demo/reiniciar_dataflow.sh"
+echo "  2. Ligar o gerador em segundo plano (demo/README.md) e, 2 minutos depois:"
+echo "     bash demo/conferir.sh"

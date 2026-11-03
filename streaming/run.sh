@@ -42,7 +42,10 @@ case "$MODO" in
       --setup_file=./setup.py \
       --enable_streaming_engine \
       --worker_machine_type="$MAQUINA" \
-      --num_workers=1 --max_num_workers=1
+      --num_workers=1 --max_num_workers=1 \
+      --no_wait_until_finish
+    # Sem --no_wait_until_finish, o "with beam.Pipeline" espera o job terminar,
+    # e um job de streaming não termina: o terminal ficaria preso aqui.
     echo
     echo "Job enviado. Acompanhe em: https://console.cloud.google.com/dataflow/jobs?project=${PROJECT_ID}"
     ;;
