@@ -1,1 +1,4 @@
 apache-beam[gcp]==2.76.0
+# O envio ao Dataflow empacota limpeza.py via setup.py. Ambientes virtuais do
+# Python 3.12 não trazem o setuptools, e sem ele o empacotamento falha.
+setuptools==75.6.0
