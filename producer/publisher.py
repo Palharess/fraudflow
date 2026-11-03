@@ -54,7 +54,10 @@ def linhas_csv(origem):
         from google.cloud import storage
 
         bucket, _, nome = origem.removeprefix("gs://").partition("/")
-        arquivo = storage.Client().bucket(bucket).blob(nome).open("r", encoding="utf-8", newline="")
+        # Blocos de 1 MiB (~3.800 transações). O padrão da biblioteca é 40 MiB,
+        # e o primeiro evento esperava o bloco inteiro chegar.
+        arquivo = storage.Client().bucket(bucket).blob(nome).open(
+            "r", encoding="utf-8", newline="", chunk_size=1024 * 1024)
     else:
         arquivo = open(origem, encoding="utf-8", newline="")
     with arquivo:
@@ -127,11 +130,15 @@ def main():
     validos = invalidos = fora_de_ordem = 0
     primeira = ultima = None
     inicio = time.monotonic()
+    proximo_envio = None
 
     print(f"Publicando {args.origem} → {args.topico} a {args.taxa:g} eventos/s "
           f"(linhas {args.inicio} a {fim if fim is not None else 'fim'})", file=sys.stderr)
     try:
         for linha in islice(linhas_csv(args.origem), args.inicio, fim):
+            if proximo_envio is None:
+                print(f"  primeira linha lida em {time.monotonic() - inicio:.1f} s", file=sys.stderr)
+                inicio = proximo_envio = time.monotonic()
             evento = evento_valido(linha)
             if ultima is not None and evento["trans_date_trans_time"] < ultima:
                 fora_de_ordem += 1
@@ -143,16 +150,21 @@ def main():
                              transaction_id=evento["trans_num"], fonte="replay-fraudTest")
             validos += 1
 
-            if invalidos < args.invalidos and validos % args.intervalo_invalidos == 0:
+            com_invalido = invalidos < args.invalidos and validos % args.intervalo_invalidos == 0
+            if com_invalido:
                 transaction_id, motivo, dados = evento_invalido(evento, invalidos)
                 destino.publicar(dados, transaction_id=transaction_id, fonte="teste-invalido",
                                  motivo_esperado=motivo)
                 invalidos += 1
 
-            # Ritmo constante: dorme o necessário para não passar da taxa.
-            atraso = inicio + (validos + invalidos) / args.taxa - time.monotonic()
-            if atraso > 0:
-                time.sleep(atraso)
+            # Ritmo constante. Se a leitura do arquivo atrasou (um bloco novo
+            # chegando do GCS), o ritmo recomeça dali, sem rajada para compensar.
+            proximo_envio += (2 if com_invalido else 1) / args.taxa
+            espera = proximo_envio - time.monotonic()
+            if espera > 0:
+                time.sleep(espera)
+            elif espera < -1:
+                proximo_envio = time.monotonic()
             if validos % 200 == 0:
                 print(f"  {validos} transações · última de {ultima}", file=sys.stderr)
     except KeyboardInterrupt:

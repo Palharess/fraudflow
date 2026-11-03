@@ -24,7 +24,10 @@ COMUNS=(
 
 case "$MODO" in
   local)
-    python pipeline.py "${COMUNS[@]}" --runner=DirectRunner
+    # O executor clássico do DirectRunner: é ele que implementa a leitura do
+    # Pub/Sub em streaming. Sem o nome explícito, o DirectRunner pode tentar
+    # outro executor primeiro.
+    python pipeline.py "${COMUNS[@]}" --runner=BundleBasedDirectRunner
     ;;
   dataflow)
     # Um worker fixo: o volume da demonstração cabe nele, e o custo fica
