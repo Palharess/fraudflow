@@ -45,10 +45,15 @@ fi
 
 echo "== Cloud Run"
 for servico in fraudflow-api fraudflow-api-bq; do
-  if gcloud run services describe "$servico" --project="$PROJECT_ID" --region="$REGION" >/dev/null 2>&1; then
+  # Só atualiza se houver instância mínima: cada update cria uma revisão nova.
+  minimo=$(gcloud run services describe "$servico" --project="$PROJECT_ID" --region="$REGION" \
+    --format='value(spec.template.metadata.annotations."autoscaling.knative.dev/minScale")' 2>/dev/null || true)
+  if [[ -n "$minimo" && "$minimo" != "0" ]]; then
     gcloud run services update "$servico" --min-instances=0 \
-      --project="$PROJECT_ID" --region="$REGION" --quiet >/dev/null
-    echo "  $servico: sem instância mínima"
+      --project="$PROJECT_ID" --region="$REGION" --quiet >/dev/null 2>&1
+    echo "  $servico: instância mínima desligada (era $minimo)"
+  else
+    echo "  $servico: já sem instância mínima"
   fi
 done
 
