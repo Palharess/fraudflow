@@ -100,7 +100,21 @@ pkill -INT -f producer/publisher.py
 
 ## Roteiro (9 minutos)
 
-### 1. O problema e a evolução · 0:00–1:00 · slides
+Os slides (`entrega/FraudFlow_Trabalho2_slides.pptx`, 6 slides, com as falas nas
+notas) abrem e fecham a apresentação; a demonstração ao vivo acontece entre o
+slide 3 e o 4.
+
+| Tempo | Bloco | Onde |
+|---|---|---|
+| 0:00–1:15 | 1. Problema, evolução e arquitetura | slides 1 e 2 |
+| 1:15–1:45 | O caminho de uma transação | slide 3 |
+| 1:45–2:45 | 2. O papel do batch | GitHub e BigQuery, ao vivo |
+| 2:45–5:30 | 3. O streaming | Cloud Shell, Dataflow, Pub/Sub e BigQuery, ao vivo |
+| 5:30–7:15 | 4. A API | Cloud Shell e /docs, ao vivo |
+| 7:15–8:45 | 5. Decisões, problemas e caminhos alternativos | slides 4 e 5 |
+| 8:45–9:00 | 6. Fechamento | slide 6 |
+
+### 1. O problema e a evolução · slides 1 a 3
 
 > Detectamos fraude em transações de cartão. No Trabalho 1, construímos o
 > histórico em lote no BigQuery e treinamos o modelo. No Trabalho 2, as
@@ -109,7 +123,7 @@ pkill -INT -f producer/publisher.py
 - Mostrar o diagrama: as três camadas (batch, streaming e serviço).
 - Explicar o **replay**: as transações de 2020 do `fraudTest` são publicadas agora, uma por vez.
 
-### 2. O papel do batch · 1:00–2:15 · GitHub e BigQuery
+### 2. O papel do batch · GitHub e BigQuery
 
 > O pipeline batch processa o histórico inteiro de uma vez, da Bronze à Gold. É
 > dele que sai o modelo.
@@ -120,7 +134,7 @@ pkill -INT -f producer/publisher.py
   Bronze. O texto cru vira horário e número, e o prefixo `fraud_` sai.
 - **Consulta A:** o volume em cada camada, 1.296.675 linhas da Bronze à Gold.
 
-### 3. O streaming ao vivo · 2:15–5:30 · Cloud Shell, Dataflow, Pub/Sub, BigQuery
+### 3. O streaming ao vivo · Cloud Shell, Dataflow, Pub/Sub, BigQuery
 
 > O pipeline de streaming trata cada transação assim que ela chega, com as
 > mesmas regras da Silver.
@@ -137,7 +151,7 @@ pkill -INT -f producer/publisher.py
    12:14:25, na mesma view. O `is_fraud` vazio no stream é proposital.
 7. **Consulta 3**, o atraso entre a publicação e o início do processamento.
 
-### 4. A API ao vivo · 5:30–7:30 · Cloud Shell e /docs
+### 4. A API ao vivo · Cloud Shell e /docs
 
 > A API recebe uma transação e devolve o score de fraude. O modelo está dentro
 > do container.
@@ -153,7 +167,7 @@ python3 demo/testar_api.py
 - A contingência (`--contingencia`) só entra se a principal falhar ou se o
   professor perguntar.
 
-### 5. Por que essas escolhas · 7:30–8:30 · slides
+### 5. Decisões, problemas e caminhos alternativos · slides 4 e 5
 
 - **Partição pela data da transação e cluster por categoria**, nas duas camadas:
   consultas por período leem só as partições do período. A consulta 2 mostra a
@@ -163,11 +177,14 @@ python3 demo/testar_api.py
   publicação e o de processamento ficam em colunas separadas.
 - **Duplicatas**: o Pub/Sub entrega pelo menos uma vez. O Dataflow descarta
   reenvios recentes, e a view mantém uma linha por transação.
-- **Modelo no container**: o Vertex AI ficou sem máquina na região. Carregar o
-  modelo na API tirou essa dependência, e o teste de paridade provou que o
-  resultado é idêntico ao do BigQuery.
+- **Caminhos alternativos** (slide 5): o endpoint do Vertex AI não subiu por
+  falta de máquina, então o modelo foi para dentro da API (Docker no Cloud Run),
+  com a contingência pelo `ML.PREDICT`; no streaming, se faltar worker, outro tipo
+  de máquina e, em último caso, o executor local.
+- **Problemas que os testes pegaram**: a exportação recusada pela idade em texto,
+  o `is_night` que virava ausente (paridade de 0,86 para 0) e a API fria.
 
-### 6. Fechamento · 8:30–9:00 · slides
+### 6. Fechamento · slide 6
 
 - Os links: o GitHub com o código e o README, e a URL da API.
 - O próximo passo, no Trabalho Final: o Dataflow chama esta API para cada
