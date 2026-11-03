@@ -1,10 +1,10 @@
 """Modelo exportado do BigQuery ML, carregado dentro do container da API.
 
 A exportação traz duas peças: o TRANSFORM como TensorFlow SavedModel
-(transform/) e o XGBoost (model.bst, com os vocabulários em assets/). O
-Predictor da biblioteca bigquery-ml-utils, mantida pelo Google, encadeia as
-duas: recebe os nove campos crus e devolve a probabilidade de cada classe.
-Nenhuma feature é calculada em Python.
+(transform/) e o XGBoost (model.bst, com os vocabulários em assets/). Aqui as
+duas são encadeadas: os nove campos crus passam pelo TRANSFORM, e as features
+que ele devolve vão para o preditor XGBoost da biblioteca bigquery-ml-utils,
+mantida pelo Google. Nenhuma feature é calculada em Python.
 """
 import json
 import threading
@@ -18,21 +18,43 @@ CAMPOS = (
     "amount", "category", "city_pop",
 )
 
-# Como o TIMESTAMP chega ao TRANSFORM. Confirmado pelo teste de paridade
-# (scripts/paridade.py) contra o ML.PREDICT.
-FORMATO_TS = "%Y-%m-%d %H:%M:%S"
+# O TRANSFORM recebe o TIMESTAMP como texto e só aceita o fuso no formato +00.
+# Sem ele, as funções de data recusam a entrada. Confirmado pelo teste de
+# paridade (scripts/paridade.py) contra o ML.PREDICT.
+FORMATO_TS = "%Y-%m-%d %H:%M:%S+00"
+
+
+def _como_vocabulario(valor):
+    """Converte uma feature do TRANSFORM para a forma gravada nos vocabulários.
+
+    O vocabulário exportado guarda BOOL como 'true'/'false'. A biblioteca
+    entregaria True/False ao XGBoost; fora do vocabulário, o valor viraria
+    ausente, e is_night é a feature mais forte do modelo.
+    """
+    if isinstance(valor, bool):
+        return "true" if valor else "false"
+    if isinstance(valor, bytes):
+        return valor.decode("utf-8")
+    return valor
 
 
 class ModeloLocal:
     backend = "modelo-local"
 
     def __init__(self, diretorio, formato_ts=FORMATO_TS):
-        # Importado aqui, e não no topo: o serviço de contingência, que consulta
+        # Importados aqui, e não no topo: o serviço de contingência, que consulta
         # o ML.PREDICT, não instala nem carrega o TensorFlow.
-        from bigquery_ml_utils.inference.transform_predictor.predictor import Predictor
+        import tensorflow as tf
+        # Importar este módulo registra as operações de data do BigQuery que o
+        # TRANSFORM usa (DATE_DIFF, EXTRACT...).
+        import bigquery_ml_utils.inference.transform_predictor.predictor  # noqa: F401
+        from bigquery_ml_utils.inference.xgboost_predictor.predictor import Predictor
 
         diretorio = Path(diretorio)
-        self._predictor = Predictor.from_path(str(diretorio))
+        self._tf = tf
+        self._transform = tf.saved_model.load(str(diretorio / "transform")).signatures["serving_default"]
+        self._entradas = self._transform.structured_input_signature[1]
+        self._xgboost = Predictor.from_path(str(diretorio))
         metadados = json.loads((diretorio / "assets" / "model_metadata.json").read_text())
         self._rotulo = metadados["label_col"]
         arquivo_versao = diretorio / "VERSAO"
@@ -59,11 +81,24 @@ class ModeloLocal:
             "city_pop":       int(transacao["city_pop"]),
         }
 
+    def features(self, transacoes):
+        """Roda o TRANSFORM e devolve as features de cada transação."""
+        instancias = [self.entrada(t) for t in transacoes]
+        colunas = {
+            nome: self._tf.constant([i[nome] for i in instancias], spec.dtype)
+            for nome, spec in self._entradas.items()
+        }
+        saida = self._transform(**colunas)
+        linhas = [{} for _ in instancias]
+        for nome, tensor in saida.items():
+            for linha, valor in zip(linhas, tensor.numpy().tolist()):
+                linha[nome] = _como_vocabulario(valor)
+        return linhas
+
     def pontuar(self, transacoes):
         """fraud_score de cada transação: a probabilidade da classe '1'."""
-        instancias = [self.entrada(t) for t in transacoes]
         with self._trava:
-            saidas = self._predictor.predict(instancias)
+            saidas = self._xgboost.predict(self.features(transacoes))
         return [self._score(saida) for saida in saidas]
 
     def _score(self, saida):

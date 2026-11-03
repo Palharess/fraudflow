@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Gera api/teste/amostra.json: 25 fraudes e 25 legítimas da janela de validação
-# do treino, com o score do ML.PREDICT de referência. O holdout não é usado.
+# do treino, com o score do ML.PREDICT e as features do ML.TRANSFORM como
+# referência (colunas f_*). O holdout não é usado.
 set -euo pipefail
 
 PROJECT_ID="${PROJECT_ID:-fraudflow-pdm-gps}"
@@ -35,6 +36,13 @@ referencia AS (
             customer_long, merchant_lat, merchant_long, amount, category,
             city_pop
      FROM amostra))
+),
+-- O ML.TRANSFORM devolve só as colunas do TRANSFORM, sem o transaction_id.
+-- A ligação com a amostra usa as colunas que o TRANSFORM repassa sem mudar.
+features AS (
+  SELECT * FROM ML.TRANSFORM(
+    MODEL \`${PROJECT_ID}.gold.fraud_boosted\`,
+    (SELECT * EXCEPT (transaction_id, split_key) FROM amostra))
 )
 SELECT
   a.transaction_id,
@@ -43,9 +51,22 @@ SELECT
   a.customer_lat, a.customer_long, a.merchant_lat, a.merchant_long,
   a.amount, a.category, a.city_pop,
   a.is_fraud,
-  r.score_bq
+  r.score_bq,
+  f.amount      AS f_amount,
+  f.log_amount  AS f_log_amount,
+  f.category    AS f_category,
+  f.hour        AS f_hour,
+  f.day_of_week AS f_day_of_week,
+  f.is_night    AS f_is_night,
+  f.age         AS f_age,
+  f.distance_km AS f_distance_km,
+  f.city_pop    AS f_city_pop
 FROM amostra AS a
 JOIN referencia AS r USING (transaction_id)
+LEFT JOIN features AS f
+  ON  f.transaction_ts = a.transaction_ts
+  AND f.amount = a.amount
+  AND f.category = a.category
 ORDER BY a.is_fraud DESC, a.transaction_id
 EOF
 
