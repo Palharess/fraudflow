@@ -33,8 +33,9 @@ WHERE DATE(transaction_ts) = '2020-06-21'
 ORDER BY transaction_ts;
 
 
--- 3. Atraso do pipeline: do momento em que o gerador publicou até a linha
---    ser processada, nos eventos dos últimos 10 minutos.
+-- 3. Atraso do pipeline: do momento em que o gerador publicou até o Beam
+--    começar a processar o evento (processed_at é marcado antes da gravação
+--    no BigQuery), nos eventos dos últimos 10 minutos.
 SELECT
   COUNT(*)                                                          AS eventos,
   ROUND(AVG(TIMESTAMP_DIFF(processed_at, published_at, MILLISECOND))) AS atraso_medio_ms,

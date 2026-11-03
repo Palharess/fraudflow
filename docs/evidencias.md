@@ -262,7 +262,9 @@ batch   1296675     2019-01-01 00:00:18 UTC  2020-06-21 12:13:37 UTC  2026-09-04
 stream  1200        2020-06-21 12:14:25 UTC  2020-06-21 19:03:09 UTC  2026-11-03 15:23:45 UTC
 ```
 
-Consulta 3 · atraso da publicação até o BigQuery:
+Consulta 3 · atraso da publicação no Pub/Sub até o início do processamento no Beam
+(`processed_at` é marcado quando o pipeline recebe o evento, antes da gravação no
+BigQuery):
 
 ```
 eventos  atraso_medio_ms  atraso_p95_ms

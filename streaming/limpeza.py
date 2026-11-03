@@ -10,6 +10,7 @@ regra da Silver que não se aplica é is_fraud IN (0, 1): o evento não traz
 rótulo.
 """
 import json
+import math
 import re
 from datetime import datetime, timezone
 
@@ -26,9 +27,13 @@ class EventoInvalido(ValueError):
 
 def _numero(evento, campo, tipo=float):
     try:
-        return tipo(evento[campo])
-    except (TypeError, ValueError):
+        valor = tipo(evento[campo])
+    except (TypeError, ValueError, OverflowError):
         raise EventoInvalido(f"tipo_invalido:{campo}") from None
+    # "inf" e "nan" viram float sem erro, e infinito passaria em "valor > 0".
+    if not math.isfinite(valor):
+        raise EventoInvalido(f"tipo_invalido:{campo}")
+    return valor
 
 
 def _data_hora(texto, formato, campo):

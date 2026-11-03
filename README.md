@@ -44,6 +44,10 @@ As duas fontes se completam no tempo. O histórico vai até **21/06/2020
 transação seguinte do dataset. Na view, a linha do tempo continua sem buraco
 nem sobreposição.
 
+O tempo real é um **replay**: as transações de 2020 do `fraudTest.csv` são
+publicadas agora, uma a uma, como se estivessem acontecendo. Cada uma mantém o
+horário original, e o horário da publicação fica registrado à parte.
+
 ---
 
 ## O caminho de uma transação
@@ -257,9 +261,11 @@ dois serviços:
 | Serviço | Como pontua | Latência mediana | Papel |
 |---|---|---|---|
 | `fraudflow-api` | modelo exportado carregado no próprio container | **51 ms** | principal |
-| `fraudflow-api-bq` | consulta o `ML.PREDICT` do BigQuery | 613 ms | contingência |
+| `fraudflow-api-bq` | consulta o `ML.PREDICT` do BigQuery | 613 ms | contingência, com URL própria |
 
-Latência medida do Cloud Shell, de ponta a ponta (HTTP), em 50 chamadas.
+Latência medida do Cloud Shell, de ponta a ponta (HTTP), em 50 chamadas: a
+contingência foi cerca de 12 vezes mais lenta nesse teste. A troca é manual:
+se a principal falhar, quem chama passa a usar a URL da contingência.
 
 - **Validação da entrada:** as mesmas regras da Silver, mais a lista das 14
   categorias que o modelo conhece. Entrada inválida recebe **erro 422**,
@@ -302,11 +308,11 @@ estão em [`docs/evidencias.md`](docs/evidencias.md).
 | Teste | Critério | Resultado |
 |---|---|---|
 | Exportação do modelo (notebook 05) | o BigQuery exporta o modelo com o `TRANSFORM` | exportado: `model.bst` + `transform/` |
-| Paridade dentro da imagem ([`api/scripts/paridade.py`](api/scripts/paridade.py)) | as 9 features iguais às do `ML.TRANSFORM` e o score igual ao do `ML.PREDICT`, em 50 transações | features iguais; diferença de score **0**; inferência de 2,4 ms |
+| Paridade dentro da imagem ([`api/scripts/paridade.py`](api/scripts/paridade.py)) | as 9 features iguais às do `ML.TRANSFORM` e o score igual ao do `ML.PREDICT`, em 50 transações | features iguais; diferença de score **0**; inferência de 2,2 ms (mediana) |
 | API publicada por HTTP ([`api/scripts/paridade_http.py`](api/scripts/paridade_http.py)) | 50 respostas iguais ao `ML.PREDICT`, 422 para entrada inválida | aprovada nos dois serviços |
 | Limpeza do streaming | cada tipo de evento inválido no motivo certo | 6 de 6 motivos corretos |
 | Emenda batch → stream | linha do tempo contínua na view | 12:13:37 (batch) → 12:14:25 (stream) |
-| Atraso do pipeline no Dataflow | da publicação até o BigQuery | **560 ms** em média, 3,2 s no percentil 95, em 1.050 eventos |
+| Atraso do pipeline no Dataflow | da publicação no Pub/Sub até o início do processamento no Beam (`processed_at`) | **560 ms** em média, 3,2 s no percentil 95, em 1.050 eventos |
 | Duplicatas | republicar 50 transações já gravadas | 1.250 linhas na tabela, **1.200 na view** |
 
 ---
@@ -415,9 +421,12 @@ python3 -m venv ~/venv-beam && ~/venv-beam/bin/pip install -r streaming/requirem
 source ~/venv-beam/bin/activate && bash streaming/run.sh dataflow
 ```
 
-4. Com o job em execução, publique as transações:
+4. Com o job em execução, publique as transações. O `--inicio` diz de qual
+   linha do `fraudTest.csv` começar; as 1.200 primeiras já foram processadas,
+   então transações novas começam em 1200. Republicar linhas antigas só faz a
+   tabela física crescer: a view continua igual, porque remove as duplicatas.
 ```bash
-~/venv-gerador/bin/python producer/publisher.py --taxa 20 --limite 1000 --invalidos 6
+~/venv-gerador/bin/python producer/publisher.py --inicio 1200 --taxa 20 --limite 1000 --invalidos 6
 ```
 
 **4. Consultas.** Rode as de [`sql/stream/42_consultas_demo.sql`](sql/stream/42_consultas_demo.sql)
@@ -440,12 +449,14 @@ bash infra/teardown.sh
 | Armazenamento (GCS, imagens, tabelas) | por mês | centavos |
 | Endpoint do Vertex AI | não usado | — |
 
-O único recurso que cobra por hora é o Dataflow. O
-[`infra/teardown.sh`](infra/teardown.sh) desliga o que cobra, do mais caro ao
-mais barato:
+Com a configuração do projeto, o único recurso que cobra por hora é o
+Dataflow. Uma instância mínima no Cloud Run, se for ligada para a apresentação,
+também passa a cobrar enquanto existir, e o armazenamento é cobrado sempre, em
+centavos. O [`infra/teardown.sh`](infra/teardown.sh) desliga o que cobra por
+hora, do mais caro ao mais barato:
 - drena o job do Dataflow;
 - apaga endpoints do Vertex AI;
-- remove instâncias mínimas do Cloud Run.
+- remove a instância mínima das revisões do Cloud Run, que é como o `deploy.sh` a configura.
 
 Ele não apaga dados.
 

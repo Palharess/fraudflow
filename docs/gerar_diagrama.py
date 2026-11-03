@@ -63,7 +63,7 @@ SETAS = [
     ([lado("bqml", "d"), (1070, 126), (1070, 199), lado("export", "e")], "", None, False),
     ([lado("export", "b"), lado("api", "c")], "imagem Docker", (1245, 262), False),
     ([lado("cliente", "c"), (957, 470), (1060, 470), (1060, 316), lado("api", "e")], "", None, False),
-    ([lado("cliente", "d"), (1080, 526), (1080, 470), (1195, 470), lado("apibq", "b")], "se a principal cair", (1195, 500), True),
+    ([lado("cliente", "d"), (1080, 526), (1080, 470), (1195, 470), lado("apibq", "b")], "URL alternativa (troca manual)", (1195, 500), True),
 ]
 
 # ------------------------------------------------------------------ SVG

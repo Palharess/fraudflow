@@ -56,7 +56,8 @@ def _falha_de_gravacao(falha):
     _, linha, erros = falha
     motivo = erros[0].get("reason", "desconhecido") if erros else "desconhecido"
     return limpeza.erro_para_bigquery(
-        f"falha_bigquery:{motivo}", repr(linha), datetime.now(timezone.utc), linha.get("pubsub_message_id"))
+        f"falha_bigquery:{motivo}", repr(linha), datetime.now(timezone.utc),
+        linha.get("pubsub_message_id"), linha.get("transaction_id"))
 
 
 def _gravar(tabela):

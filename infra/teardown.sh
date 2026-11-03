@@ -15,14 +15,15 @@ PROJECT_ID="${PROJECT_ID:-fraudflow-pdm-gps}"
 REGION="${REGION:-us-central1}"
 
 echo "== Dataflow"
+# Só o job deste projeto, pelo nome que o streaming/run.sh usa.
 JOBS=$(gcloud dataflow jobs list --project="$PROJECT_ID" --region="$REGION" \
-  --status=active --format='value(id)')
+  --status=active --filter='name=fraudflow-stream' --format='value(id)')
 if [[ -z "$JOBS" ]]; then
   echo "  nenhum job ativo"
 else
   for job in $JOBS; do
     gcloud dataflow jobs drain "$job" --project="$PROJECT_ID" --region="$REGION"
-    echo "  drain pedido: $job (leva alguns minutos para terminar)"
+    echo "  drain pedido: $job. Ele só terminou quando o console mostrar Drained (\"Reduzido\")."
   done
 fi
 
