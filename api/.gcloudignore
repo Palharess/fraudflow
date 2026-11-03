@@ -1,0 +1,6 @@
+# Enviado ao Cloud Build: só o necessário para o build. O modelo (modelo/)
+# precisa ir junto, embora fique fora do git.
+.gcloudignore
+scripts/
+teste/
+**/__pycache__/

@@ -1,10 +1,15 @@
-"""Modelo exportado do BigQuery ML, carregado dentro do container da API.
+"""Os dois backends de pontuação da API. Os dois recebem os mesmos nove campos
+e devolvem o mesmo score.
 
-A exportação traz duas peças: o TRANSFORM como TensorFlow SavedModel
-(transform/) e o XGBoost (model.bst, com os vocabulários em assets/). Aqui as
-duas são encadeadas: os nove campos crus passam pelo TRANSFORM, e as features
-que ele devolve vão para o preditor XGBoost da biblioteca bigquery-ml-utils,
-mantida pelo Google. Nenhuma feature é calculada em Python.
+ModeloLocal — o principal. A exportação do BigQuery ML traz o TRANSFORM como
+TensorFlow SavedModel (transform/) e o XGBoost (model.bst, com os vocabulários
+em assets/). Aqui as duas peças são encadeadas: os campos crus passam pelo
+TRANSFORM, e as features que ele devolve vão para o preditor XGBoost da
+biblioteca bigquery-ml-utils, mantida pelo Google. Nenhuma feature é calculada
+em Python.
+
+ModeloBigQuery — a contingência. Consulta o ML.PREDICT do próprio BigQuery:
+mais lento, mas sem TensorFlow e sem artefato no container.
 """
 import json
 import threading
@@ -20,8 +25,14 @@ CAMPOS = (
 
 # O TRANSFORM recebe o TIMESTAMP como texto e só aceita o fuso no formato +00.
 # Sem ele, as funções de data recusam a entrada. Confirmado pelo teste de
-# paridade (scripts/paridade.py) contra o ML.PREDICT.
+# paridade (scripts/paridade.py): mesmas features do ML.TRANSFORM e mesmo
+# score do ML.PREDICT nas 50 transações da amostra.
 FORMATO_TS = "%Y-%m-%d %H:%M:%S+00"
+
+
+def _score_da_classe_1(probabilidades):
+    """Probabilidade da classe '1' numa lista de {label, prob} do BigQuery."""
+    return next(p["prob"] for p in probabilidades if str(p["label"]) == "1")
 
 
 def _como_vocabulario(valor):
@@ -104,3 +115,45 @@ class ModeloLocal:
     def _score(self, saida):
         valores = [str(v) for v in saida[f"{self._rotulo}_values"]]
         return float(saida[f"{self._rotulo}_probs"][valores.index("1")])
+
+
+class ModeloBigQuery:
+    backend = "bigquery-ml-predict"
+
+    def __init__(self, projeto, modelo="gold.fraud_boosted"):
+        from google.cloud import bigquery
+
+        self._bq = bigquery
+        self._cliente = bigquery.Client(project=projeto, location="us-central1")
+        referencia = f"{projeto}.{modelo}"
+        treinado = self._cliente.get_model(referencia).modified
+        self.versao = f"{modelo} · BigQuery ML · treinado em {treinado:%d/%m/%Y %H:%M} UTC"
+        # As transações vão como parâmetro, nunca concatenadas no SQL. O índice
+        # i preserva a ordem da resposta.
+        self._sql = f"""
+            SELECT i, predicted_is_fraud_probs AS probs
+            FROM ML.PREDICT(MODEL `{referencia}`, (SELECT * FROM UNNEST(@linhas)))
+            ORDER BY i
+        """
+
+    def _linha(self, i, t):
+        bq = self._bq
+        campos = [
+            bq.ScalarQueryParameter("i", "INT64", i),
+            bq.ScalarQueryParameter("transaction_ts", "TIMESTAMP", t["transaction_ts"]),
+            bq.ScalarQueryParameter("customer_dob", "DATE", t["customer_dob"]),
+        ]
+        campos += [bq.ScalarQueryParameter(c, "FLOAT64", float(t[c]))
+                   for c in ("customer_lat", "customer_long", "merchant_lat", "merchant_long", "amount")]
+        campos += [
+            bq.ScalarQueryParameter("category", "STRING", str(t["category"])),
+            bq.ScalarQueryParameter("city_pop", "INT64", int(t["city_pop"])),
+        ]
+        return bq.StructQueryParameter(None, *campos)
+
+    def pontuar(self, transacoes):
+        parametro = self._bq.ArrayQueryParameter(
+            "linhas", "STRUCT", [self._linha(i, t) for i, t in enumerate(transacoes)])
+        linhas = self._cliente.query_and_wait(
+            self._sql, job_config=self._bq.QueryJobConfig(query_parameters=[parametro]))
+        return [float(_score_da_classe_1(linha["probs"])) for linha in linhas]

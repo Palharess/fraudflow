@@ -5,15 +5,25 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 
-from .modelo import CAMPOS, ModeloLocal
+from .modelo import CAMPOS, ModeloBigQuery, ModeloLocal
 from .schemas import Pontuacao, Transacao
+
+
+def carregar_modelo():
+    """BACKEND=local (padrão): modelo no container. BACKEND=bigquery: ML.PREDICT."""
+    backend = os.environ.get("BACKEND", "local")
+    if backend == "local":
+        return ModeloLocal(os.environ.get("MODELO_DIR", "/app/modelo"))
+    if backend == "bigquery":
+        return ModeloBigQuery(os.environ["PROJECT_ID"])
+    raise ValueError(f"BACKEND desconhecido: {backend!r}")
 
 
 @asynccontextmanager
 async def lifespan(app):
     # O modelo é carregado uma vez, antes de o servidor aceitar conexões. No
     # Cloud Run, a instância só recebe tráfego depois disso.
-    app.state.modelo = ModeloLocal(os.environ.get("MODELO_DIR", "/app/modelo"))
+    app.state.modelo = carregar_modelo()
     yield
 
 

@@ -62,7 +62,10 @@ def comparar_features(modelo, linhas, transacoes):
     iguais = True
     for nome in FEATURES:
         if nome in CATEGORICAS:
-            erros = sum(str(locais[i][nome]).lower() != str(linhas[i][f"f_{nome}"]).lower()
+            # A categoria é comparada exatamente: qualquer diferença muda a
+            # posição no vocabulário. Só o booleano tem a grafia normalizada.
+            normalizar = str.lower if nome == "is_night" else (lambda v: v)
+            erros = sum(normalizar(str(locais[i][nome])) != normalizar(str(linhas[i][f"f_{nome}"]))
                         for i in com_referencia)
             print(f"  {nome:<12} {erros} diferentes")
             iguais &= erros == 0
@@ -93,6 +96,9 @@ def main(caminho):
         except Exception as erro:
             print(f"{nome:<14} recusado: {str(erro).splitlines()[-1][:200]}")
             continue
+        if len(candidatos) != len(referencia):
+            print(f"{nome:<14} devolveu {len(candidatos)} scores para {len(referencia)} transações")
+            continue
         diferenca = max(abs(s - r) for s, r in zip(candidatos, referencia))
         print(f"{nome:<14} aceito   diferença máxima {diferenca:.2e}")
         if diferenca < TOLERANCIA and escolhido is None:
@@ -109,13 +115,16 @@ def main(caminho):
         features_iguais = False
 
     verificacoes = {
-        f"{ESPERADO} transações na amostra": len(transacoes) == ESPERADO,
+        f"{ESPERADO} transações na amostra": len(transacoes) == len(referencia) == ESPERADO,
+        # Se a ligação com o ML.TRANSFORM duplicasse linhas, um id se repetiria.
+        f"{ESPERADO} transaction_id distintos": len({l["transaction_id"] for l in linhas}) == ESPERADO,
         "fraudes e legítimas presentes": {str(l["is_fraud"]) for l in linhas} == {"0", "1"},
         "features iguais às do ML.TRANSFORM": features_iguais,
         "algum formato de TIMESTAMP bateu": escolhido is not None,
     }
     if scores is not None:
         diferencas = [abs(s - r) for s, r in zip(scores, referencia)]
+        verificacoes[f"{ESPERADO} scores devolvidos"] = len(scores) == ESPERADO
         verificacoes["scores finitos entre 0 e 1"] = all(math.isfinite(s) and 0 <= s <= 1 for s in scores)
         verificacoes[f"diferença máxima < {TOLERANCIA:g}"] = max(diferencas) < TOLERANCIA
 

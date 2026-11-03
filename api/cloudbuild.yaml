@@ -1,0 +1,8 @@
+# Build da imagem no Cloud Build, chamado pelo deploy.sh com o Dockerfile e o
+# nome da imagem como substituições.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "${_DOCKERFILE}", "-t", "${_IMAGEM}", "."]
+images:
+  - "${_IMAGEM}"
+timeout: 1800s
