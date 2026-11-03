@@ -4,6 +4,10 @@ data/
 *.zip
 *.parquet
 
+# Modelo exportado e amostra de teste da API - baixados do GCP pelos scripts
+api/modelo/
+api/teste/
+
 # Credenciais - NUNCA commitar
 kaggle.json
 *.json.key
