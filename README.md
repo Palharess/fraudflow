@@ -296,7 +296,8 @@ futuro.
 
 ## Testes e evidências
 
-Cada etapa só avançou com um teste de critério objetivo.
+Cada etapa só avançou com um teste de critério objetivo. As saídas completas
+estão em [`docs/evidencias.md`](docs/evidencias.md).
 
 | Teste | Critério | Resultado |
 |---|---|---|
