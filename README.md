@@ -4,6 +4,9 @@ Detecção de fraude em transações de cartão na Google Cloud, do histórico a
 tempo real. Projeto da disciplina **Processamento de Dados Massivos**, em três
 entregas que evoluem a mesma solução.
 
+**Grupo:** Bruno Massahiro Watanabe · Gabriel Palhares Siqueira · Jonatas Kalebe
+Machado de Freitas · Pedro Alano Vieira da Silva Potela
+
 | Entrega | Escopo | Datas |
 |---|---|---|
 | Trabalho 1 | Arquitetura Medallion no BigQuery e modelo em BigQuery ML | apresentado em 11/09/2026 |
@@ -472,7 +475,8 @@ producer/    gerador de eventos para o Pub/Sub
 streaming/   pipeline Apache Beam para o Dataflow
 api/         API FastAPI: código, Dockerfiles, deploy no Cloud Run e testes de paridade
 infra/       preparar o streaming e desligar o que cobra
-docs/        diagrama da arquitetura (imagem e o script que a gera)
+docs/        diagrama da arquitetura (imagem e o script que a gera) e evidências dos testes
+demo/        roteiro da apresentação ao vivo e scripts de preparação e de teste da API
 ```
 
 ---
