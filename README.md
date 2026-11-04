@@ -22,6 +22,20 @@ Machado de Freitas · Pedro Alano Vieira da Silva Potela
 | API de contingência (`ML.PREDICT`) | https://fraudflow-api-bq-189235868606.us-central1.run.app |
 | Repositório | https://github.com/Palharess/fraudflow |
 
+## Onde está cada entregável
+
+| Pedido no enunciado | Onde está |
+|---|---|
+| Produtor de eventos para o Pub/Sub | [`producer/publisher.py`](producer/publisher.py) |
+| Pipeline de streaming (Pub/Sub → limpeza → BigQuery) | [`streaming/pipeline.py`](streaming/pipeline.py) e as regras em [`streaming/limpeza.py`](streaming/limpeza.py) |
+| API REST: código, `Dockerfile`, `requirements.txt` | [`api/app/`](api/app/), [`api/Dockerfile`](api/Dockerfile), [`api/requirements.txt`](api/requirements.txt) |
+| Scripts de deploy no Cloud Run | [`api/deploy.sh`](api/deploy.sh) e [`api/cloudbuild.yaml`](api/cloudbuild.yaml) |
+| SQL das tabelas de streaming e da integração batch + stream | [`sql/stream/`](sql/stream/) |
+| Modelo registrado no Vertex AI Model Registry | `fraudflow-boosted`, versão 2, registrado pelo [`CREATE MODEL`](sql/ml/31_create_model_boosted.sql); exportação no [notebook 05](Notebooks/05_validacao_modelo.ipynb) |
+| Link do modelo rodando no Cloud Run | https://fraudflow-api-189235868606.us-central1.run.app |
+| Evidências dos testes | [`docs/evidencias.md`](docs/evidencias.md) |
+| Diagrama da arquitetura híbrida | [`docs/arquitetura.png`](docs/arquitetura.png) |
+
 ---
 
 ## A arquitetura em uma imagem
@@ -355,7 +369,9 @@ funcionado, errando, sem nenhum aviso.
 - **Leitura do arquivo:** a leitura do GCS em blocos de 40 MB atrasava o
   primeiro evento, e agora usa blocos de 1 MB.
 - **Envio para o Dataflow:** o ambiente Python 3.12 do Cloud Shell não trazia o
-  `setuptools`, necessário para enviar o pipeline.
+  `setuptools`, necessário para enviar o pipeline. E, por padrão, o Beam espera o
+  job terminar antes de devolver o terminal, o que nunca acontece num job de
+  streaming; o envio passou a usar `--no_wait_until_finish`.
 
 ---
 
@@ -439,6 +455,9 @@ no console do BigQuery.
 ```bash
 bash infra/teardown.sh
 ```
+
+Para a demonstração ao vivo, com a ordem de preparação, as consultas e o plano B,
+veja [`demo/README.md`](demo/README.md).
 
 ---
 

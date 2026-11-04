@@ -25,7 +25,9 @@ app/main.py            rotas e escolha do backend (variável BACKEND)
 app/schemas.py         contrato de entrada e saída
 app/modelo.py          ModeloLocal e ModeloBigQuery
 Dockerfile             imagem principal (Python 3.11, TensorFlow, modelo)
+requirements.txt       dependências da imagem principal, com as versões fixadas
 Dockerfile.bigquery    imagem de contingência
+requirements-bigquery.txt  dependências da contingência (sem TensorFlow)
 deploy.sh              publica no Cloud Run: bash deploy.sh local|bigquery
 cloudbuild.yaml        build no Cloud Build, usado pelo deploy.sh
 scripts/               baixar o modelo, gerar a amostra e os testes de paridade

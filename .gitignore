@@ -4,6 +4,9 @@ data/
 *.zip
 *.parquet
 
+# Arquivos de entrega (slides e PDF), enviados à parte
+entrega/
+
 # Modelo exportado e amostra de teste da API - baixados do GCP pelos scripts
 api/modelo/
 api/teste/
