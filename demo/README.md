@@ -78,8 +78,8 @@ O esperado:
 2. **Cloud Shell, aba 1** com o gerador ao vivo: `tail -f ~/gerador.log`
 3. **Cloud Shell, aba 2**, livre, já em `~/fraudflow`, para o teste da API.
 4. **Dataflow** → `fraudflow-stream`, no grafo.
-5. **BigQuery**, com seis abas, uma por consulta, já coladas (seção
-   [Consultas](#consultas)): **B, A, 1, 4, 2, 3**.
+5. **BigQuery**, com cinco abas, uma por consulta, já coladas (seção
+   [Consultas](#consultas)), nesta ordem: **B, A, 1, 2, 3**.
 6. **API**: https://fraudflow-api-189235868606.us-central1.run.app/docs
 
 Aumente o zoom do navegador (`Ctrl` + `+`) e a fonte do Cloud Shell, para a projeção.
@@ -121,13 +121,12 @@ Tudo já está rodando: você só troca de aba e executa.
 
 | Fazer | Dizer |
 |---|---|
-| **Cloud Shell, aba 1** (o `tail -f`) | "Este é o gerador publicando agora, 5 transações por segundo. Os horários são de 2020: mantemos o horário original da compra." |
-| **Dataflow**, o grafo | "O Dataflow lê a fila, aplica as regras da Silver e separa válidas e erros." |
-| Executar a **consulta 1** e guardar o número da linha `stream` | "A linha batch é o histórico; a linha stream, o que chegou pelo pipeline." |
-| Executar a **consulta 4** | "Um evento inválido por minuto. Ele não derruba o pipeline: fica registrado com o motivo." |
-| Executar a **consulta 1** de novo | "O stream cresceu, e o batch continua igual. Os dois pipelines alimentam a mesma visão." |
-| Executar a **consulta 2**; apontar o "vai processar … KB" | "A emenda: o histórico termina às 12:13:37 e o stream começa às 12:14:25. Por causa da partição, a consulta leu só alguns KB." |
-| Executar a **consulta 3** | "Da publicação até o início do processamento, em milissegundos." |
+| **Cloud Shell, aba 1** (o `tail -f`) | "Este é o gerador publicando agora, 5 transações por segundo, no Pub/Sub." |
+| **Dataflow**, o grafo | "O Dataflow lê a fila, aplica as mesmas regras da Silver e separa válidas e erros." |
+| Executar a **consulta 1** e guardar o número da linha `stream` | "Na mesma visão: a linha batch é o histórico do Trabalho 1; a linha stream, o que está chegando pelo pipeline." |
+| Executar a **consulta 2** | "As últimas transações que entraram na Silver de streaming. A compra é de 2020, porque mantemos o horário original, mas ela chegou há poucos segundos. Os campos já estão limpos: tipados e sem o prefixo `fraud_`." |
+| Executar a **consulta 3** | "O gerador manda um evento inválido por minuto. Ele não derruba o pipeline: vai para a tabela de erros, com o motivo." |
+| Executar a **consulta 2** e a **consulta 1** de novo | "Já apareceram transações novas no topo, e a linha stream cresceu, enquanto o batch continua igual." |
 
 ### C. A API · 1:30 · Cloud Shell, aba 2, e /docs
 
@@ -174,8 +173,10 @@ mais o número de transações da última linha do log.
 
 ## Consultas
 
-Prontas para colar no BigQuery. As de número 1 a 4 também estão em
+Prontas para colar no BigQuery. Também estão em
 [`sql/stream/42_consultas_demo.sql`](../sql/stream/42_consultas_demo.sql).
+
+**Batch**
 
 **A · Volume em cada camada do batch**
 ```sql
@@ -195,6 +196,8 @@ FROM `fraudflow-pdm-gps.bronze.transactions`
 LIMIT 5;
 ```
 
+**Streaming**
+
 **1 · Batch e stream lado a lado**
 ```sql
 SELECT origin, COUNT(*) AS transacoes, MIN(transaction_ts) AS primeira, MAX(transaction_ts) AS ultima, MAX(arrived_at) AS ultima_chegada
@@ -202,7 +205,30 @@ FROM `fraudflow-pdm-gps.gold.vw_transactions_unified`
 GROUP BY origin ORDER BY origin;
 ```
 
-**2 · A emenda**
+**2 · As últimas transações que chegaram na Silver de streaming**
+```sql
+SELECT
+  FORMAT_TIMESTAMP('%H:%M:%S', processed_at, 'America/Sao_Paulo') AS chegou_as,
+  FORMAT_TIMESTAMP('%d/%m/%Y %H:%M', transaction_ts)               AS horario_da_compra,
+  category, ROUND(amount, 2) AS valor, merchant_name, customer_state
+FROM `fraudflow-pdm-gps.silver.transactions_stream`
+WHERE processed_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 5 MINUTE)
+ORDER BY processed_at DESC
+LIMIT 10;
+```
+
+**3 · Erros por motivo (hoje)**
+```sql
+SELECT error_reason, COUNT(*) AS eventos, MAX(processed_at) AS ultimo
+FROM `fraudflow-pdm-gps.silver.transactions_stream_errors`
+WHERE DATE(processed_at) = CURRENT_DATE()
+GROUP BY error_reason ORDER BY eventos DESC;
+```
+
+**Extras, só se o professor perguntar**
+
+*A emenda.* Onde o histórico termina e o streaming começa, na mesma view. Mostra
+também o efeito da partição: o console estima a leitura em poucos KB.
 ```sql
 SELECT origin, FORMAT_TIMESTAMP('%d/%m/%Y %H:%M:%S', transaction_ts) AS quando, category, ROUND(amount, 2) AS valor, is_fraud
 FROM `fraudflow-pdm-gps.gold.vw_transactions_unified`
@@ -210,21 +236,14 @@ WHERE DATE(transaction_ts) = '2020-06-21' AND transaction_ts BETWEEN '2020-06-21
 ORDER BY transaction_ts;
 ```
 
-**3 · Atraso entre a publicação e o início do processamento (últimos 10 minutos)**
+*O atraso.* Da publicação no Pub/Sub até o início do processamento no Beam, nos
+últimos 10 minutos.
 ```sql
 SELECT COUNT(*) AS eventos,
   ROUND(AVG(TIMESTAMP_DIFF(processed_at, published_at, MILLISECOND))) AS atraso_medio_ms,
   APPROX_QUANTILES(TIMESTAMP_DIFF(processed_at, published_at, MILLISECOND), 100)[OFFSET(95)] AS atraso_p95_ms
 FROM `fraudflow-pdm-gps.silver.transactions_stream`
 WHERE processed_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 10 MINUTE);
-```
-
-**4 · Erros por motivo (hoje)**
-```sql
-SELECT error_reason, COUNT(*) AS eventos, MAX(processed_at) AS ultimo
-FROM `fraudflow-pdm-gps.silver.transactions_stream_errors`
-WHERE DATE(processed_at) = CURRENT_DATE()
-GROUP BY error_reason ORDER BY eventos DESC;
 ```
 
 ---

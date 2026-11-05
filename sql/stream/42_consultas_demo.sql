@@ -72,3 +72,19 @@ FROM `${PROJECT_ID}.silver.transactions_stream`
 WHERE processed_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 MINUTE)
 GROUP BY minuto
 ORDER BY minuto DESC;
+
+
+-- 7. As últimas transações que chegaram na Silver de streaming: o horário da
+--    compra (2020, o original) ao lado do horário de chegada (agora, no fuso
+--    de Brasília). Rode duas vezes: as do topo mudam.
+SELECT
+  FORMAT_TIMESTAMP('%H:%M:%S', processed_at, 'America/Sao_Paulo') AS chegou_as,
+  FORMAT_TIMESTAMP('%d/%m/%Y %H:%M', transaction_ts)               AS horario_da_compra,
+  category,
+  ROUND(amount, 2)                                                 AS valor,
+  merchant_name,
+  customer_state
+FROM `${PROJECT_ID}.silver.transactions_stream`
+WHERE processed_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 5 MINUTE)
+ORDER BY processed_at DESC
+LIMIT 10;
