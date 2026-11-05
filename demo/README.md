@@ -65,9 +65,15 @@ do terminal não o interrompe. Isso não o protege, porém, se a máquina do Clo
 Shell for encerrada: o Cloud Shell tem limites de sessão e de inatividade.
 Mantenha o log aberto e o gerador monitorado até o fim da apresentação.
 
-1. Ligue o gerador, trocando `N` pelo número anotado no ensaio:
+1. Entre na pasta do projeto. Precisa ser um comando separado: com o `&` do
+   passo seguinte na mesma linha, o `cd` iria junto para o segundo plano, e o
+   terminal ficaria fora da pasta.
 ```bash
-cd ~/fraudflow && nohup ~/venv-gerador/bin/python producer/publisher.py --inicio N --taxa 5 --invalidos 60 --intervalo-invalidos 300 > ~/gerador.log 2>&1 &
+cd ~/fraudflow
+```
+   Depois ligue o gerador, trocando `N` pelo número anotado no ensaio:
+```bash
+nohup ~/venv-gerador/bin/python producer/publisher.py --inicio N --taxa 5 --invalidos 60 --intervalo-invalidos 300 > ~/gerador.log 2>&1 &
 ```
 
 2. Acompanhe ao vivo; é esta tela que aparece na demo. `Ctrl+C` só fecha a visualização:
