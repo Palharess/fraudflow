@@ -40,7 +40,7 @@ cd ~/fraudflow
 
 2. Ligue o gerador:
 ```bash
-nohup ~/venv-gerador/bin/python producer/publisher.py --inicio 11835 --taxa 5 --invalidos 60 --intervalo-invalidos 300 > ~/gerador.log 2>&1 &
+nohup ~/venv-gerador/bin/python producer/publisher.py --inicio 14138 --taxa 5 --invalidos 60 --intervalo-invalidos 300 > ~/gerador.log 2>&1 &
 ```
 
 **28 minutos antes:** conferir que tudo funciona.
